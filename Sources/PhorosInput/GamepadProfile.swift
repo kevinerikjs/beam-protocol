@@ -247,7 +247,7 @@ public enum XboxOneReport {
     /// [5-8]    right stick Z, Rz
     /// [9-10]   brake (left trigger) 0-1023, [11-12] accelerator (right trigger) 0-1023
     /// [13]     hat: 1-8 clockwise from up, 0 = released
-    /// [14-15]  buttons 1-15, then bit 15 = View (AC Back)
+    /// [14-15]  buttons 1-15 (View is button 11), then bit 15 = View again as AC Back
     /// [16]     bit 0 = Share (Record), rest zero
     /// ```
     /// Report 2 carries the Xbox button as Consumer AC Home.
@@ -300,7 +300,7 @@ public enum XboxOneReport {
         if b.contains(.menu) { bits |= 1 << 11 }
         if b.contains(.leftThumbstick) { bits |= 1 << 13 }
         if b.contains(.rightThumbstick) { bits |= 1 << 14 }
-        if b.contains(.options) { bits |= 1 << 15 }   // View, Consumer AC Back
+        if b.contains(.options) { bits |= 1 << 10 | 1 << 15 }   // View: button 11, and Consumer AC Back
         out[14] = UInt8(bits & 0xFF)
         out[15] = UInt8(bits >> 8)
         return out
