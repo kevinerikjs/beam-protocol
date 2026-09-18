@@ -285,8 +285,8 @@ public enum XboxOneReport {
         put16(axis16(r.leftY, inverted: true), at: 3)
         put16(axis16(r.rightX), at: 5)
         put16(axis16(r.rightY, inverted: true), at: 7)
-        put16(UInt16(r.leftTrigger) * 1023 / 255, at: 9)
-        put16(UInt16(r.rightTrigger) * 1023 / 255, at: 11)
+        put16(trigger10(r.leftTrigger), at: 9)
+        put16(trigger10(r.rightTrigger), at: 11)
         let hat = GamepadReport.hat(for: r.buttons)
         out[13] = hat == 8 ? 0 : hat + 1
         var bits: UInt16 = 0
@@ -309,6 +309,11 @@ public enum XboxOneReport {
     /// Report 2: the Xbox button.
     public static func homeReport(pressed: Bool) -> [UInt8] {
         [0x02, pressed ? 0x01 : 0x00]
+    }
+
+    /// 0-255 to the 10-bit trigger range. Widened first: `UInt16(255) * 1023` overflows.
+    static func trigger10(_ value: UInt8) -> UInt16 {
+        UInt16(Int(value) * 1023 / 255)
     }
 
     static func axis16(_ value: Int16, inverted: Bool = false) -> UInt16 {

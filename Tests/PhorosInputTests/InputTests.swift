@@ -167,5 +167,10 @@ final class GamepadProfileTests: XCTestCase {
         XCTAssertEqual(pressed[14], 0b0001_0001)
         XCTAssertEqual(pressed[15], 0b1000_1000)
         XCTAssertEqual(XboxOneReport.homeReport(pressed: true), [0x02, 0x01])
+        let bothFull = XboxOneReport.bytes(for: ControllerReport(leftX: -32767, leftY: -32767, rightX: 32767, rightY: 32767, leftTrigger: 255, rightTrigger: 255))
+        XCTAssertEqual(UInt16(bothFull[9]) | UInt16(bothFull[10]) << 8, 1023, "full trigger must not overflow")
+        XCTAssertEqual(UInt16(bothFull[1]) | UInt16(bothFull[2]) << 8, 0)
+        XCTAssertEqual(UInt16(bothFull[3]) | UInt16(bothFull[4]) << 8, 65535, "stick down is Y max")
+        _ = DualShock4Report.bytes(for: ControllerReport(leftX: .min, leftY: .max, rightX: .min, rightY: .max, leftTrigger: 255, rightTrigger: 255))
     }
 }
