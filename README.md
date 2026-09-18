@@ -21,7 +21,7 @@ Or declare it in a Swift package:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/kevinerikjs/beam-protocol.git", from: "1.0.0")
+    .package(url: "https://github.com/kevinerikjs/beam-protocol.git", from: "1.0.2")
 ]
 ```
 
