@@ -99,6 +99,10 @@ extension ControllerReport {
 public final class ControllerSampler: @unchecked Sendable {
     public var onReport: ((_ report: ControllerReport, _ connected: Bool) -> Void)?
     public var onAttachmentChange: ((_ attached: Bool) -> Void)?
+    /// Which controllers to consider. Default: any with an extended gamepad
+    /// profile. A host that also creates virtual controllers on the same
+    /// machine uses this to avoid sampling its own output.
+    public var accepts: ((GCController) -> Bool)?
 
     public let sampleRate: Double
     private var throttle: ReportThrottle
@@ -131,7 +135,7 @@ public final class ControllerSampler: @unchecked Sendable {
                 self.detach()
             },
         ]
-        if let controller = GCController.controllers().first(where: { $0.extendedGamepad != nil }) {
+        if let controller = GCController.controllers().first(where: { $0.extendedGamepad != nil && (accepts?($0) ?? true) }) {
             attach(controller)
         }
     }
@@ -149,7 +153,7 @@ public final class ControllerSampler: @unchecked Sendable {
     }
 
     private func attach(_ candidate: GCController) {
-        guard candidate.extendedGamepad != nil, controller == nil else { return }
+        guard candidate.extendedGamepad != nil, controller == nil, accepts?(candidate) ?? true else { return }
         controller = candidate
         throttle.reset()
         onAttachmentChange?(true)
