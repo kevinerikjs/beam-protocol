@@ -23,4 +23,46 @@ final class BeamProtocolTests: XCTestCase {
         XCTAssertNil(BeamAudioCodec(packetFlags: 0x0F))
         XCTAssertEqual(BeamVideoCodec(packetFlags: 0x0F), .h264)
     }
+
+    func testNewPairingFieldsDoNotBreakAnOlderMessage() throws {
+        let data = Data("""
+        {
+          "type": "auth_success",
+          "deviceName": "Mac",
+          "deviceID": null,
+          "code": null,
+          "sharedSecret": null,
+          "error": null
+        }
+        """.utf8)
+
+        let message = try JSONDecoder().decode(BeamPairingMessage.self, from: data)
+
+        XCTAssertEqual(message.type, .authSuccess)
+        XCTAssertNil(message.supportedAudioCodecs)
+        XCTAssertNil(message.supportsWindowSelection)
+    }
+
+    func testNewPairingMessageKeepsOptionalFieldsOnTheWire() throws {
+        let original = BeamPairingMessage(
+            type: .authRequest,
+            deviceName: "iPhone",
+            deviceID: "device-id",
+            code: nil,
+            sharedSecret: "secret",
+            error: nil,
+            supportedAudioCodecs: ["aac_lc", "pcm_f32le"],
+            supportedVideoCodecs: ["hevc", "h264"],
+            wantsAudio: false
+        )
+
+        let decoded = try JSONDecoder().decode(
+            BeamPairingMessage.self,
+            from: JSONEncoder().encode(original)
+        )
+
+        XCTAssertEqual(decoded.supportedAudioCodecs, ["aac_lc", "pcm_f32le"])
+        XCTAssertEqual(decoded.supportedVideoCodecs, ["hevc", "h264"])
+        XCTAssertEqual(decoded.wantsAudio, false)
+    }
 }
