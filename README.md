@@ -20,7 +20,7 @@
 
 <br>
 
-Phoros is the protocol and the plumbing behind [Beam](https://github.com/kevinerikjs/beam-ios) and [Beacon](https://github.com/kevinerikjs/beacon-macos), a shipped iPhone and Mac pair. It is published so you can build the same kind of app without repeating what they learned in production. Four products, take what you need:
+Phoros is the protocol and the plumbing behind [Beam](https://github.com/kevinerikjs/beam-ios) and [Beacon](https://github.com/kevinerikjs/beacon-macos), a shipped iPhone and Mac pair (Beam 3.0, Beacon 1.5.0). It is published so you can build the same kind of app without repeating what they learned in production. Five products, take what you need:
 
 | Product | What it is | Depends on |
 |---|---|---|
