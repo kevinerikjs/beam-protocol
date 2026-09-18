@@ -1,0 +1,328 @@
+import XCTest
+import Phoros
+import PhorosSession
+
+final class FrameAssemblerTests: XCTestCase {
+    private func payload(frame: UInt32, index: UInt16, count: UInt16, bytes: [UInt8]) -> Data {
+        VideoFragmentHeader(frameNumber: frame, fragmentIndex: index, fragmentCount: count, presentationTimestamp: 7).serialized() + Data(bytes)
+    }
+
+    func testSingleFragmentFrameIsReturnedImmediately() {
+        var assembler = FrameAssembler()
+        let frame = assembler.receive(payload(frame: 1, index: 0, count: 1, bytes: [9, 9]), isKeyframe: true)
+        XCTAssertEqual(frame, AssembledFrame(frameNumber: 1, presentationTimestamp: 7, isKeyframe: true, bitstream: Data([9, 9])))
+    }
+
+    func testFragmentsAssembleInOrderRegardlessOfArrival() {
+        var assembler = FrameAssembler()
+        XCTAssertNil(assembler.receive(payload(frame: 5, index: 2, count: 3, bytes: [3]), isKeyframe: false))
+        XCTAssertNil(assembler.receive(payload(frame: 5, index: 0, count: 3, bytes: [1]), isKeyframe: false))
+        let frame = assembler.receive(payload(frame: 5, index: 1, count: 3, bytes: [2]), isKeyframe: false)
+        XCTAssertEqual(frame?.bitstream, Data([1, 2, 3]))
+        XCTAssertEqual(assembler.pendingFrameCount, 0)
+    }
+
+    func testAbandonedFramesAreDroppedOnceStale() {
+        var assembler = FrameAssembler(staleDepth: 2)
+        XCTAssertNil(assembler.receive(payload(frame: 1, index: 0, count: 2, bytes: [1]), isKeyframe: false))
+        XCTAssertEqual(assembler.pendingFrameCount, 1)
+        _ = assembler.receive(payload(frame: 2, index: 0, count: 1, bytes: [0]), isKeyframe: false)
+        XCTAssertEqual(assembler.pendingFrameCount, 1)
+        _ = assembler.receive(payload(frame: 4, index: 0, count: 1, bytes: [0]), isKeyframe: false)
+        XCTAssertEqual(assembler.pendingFrameCount, 0)
+    }
+
+    func testMalformedPayloadsAreIgnored() {
+        var assembler = FrameAssembler()
+        XCTAssertNil(assembler.receive(Data([1, 2, 3]), isKeyframe: false))
+        XCTAssertNil(assembler.receive(payload(frame: 1, index: 5, count: 2, bytes: [1]), isKeyframe: false))
+        XCTAssertNil(assembler.receive(payload(frame: 1, index: 0, count: 0, bytes: [1]), isKeyframe: false))
+        XCTAssertEqual(assembler.pendingFrameCount, 0)
+    }
+
+    func testFragmentHelperAndAssemblerRoundTrip() {
+        let bitstream = Data((0..<5000).map { UInt8($0 % 251) })
+        var assembler = FrameAssembler()
+        var result: AssembledFrame?
+        for payload in VideoFragmentHeader.fragment(bitstream, frameNumber: 9, presentationTimestamp: 1, maximumPayloadLength: 1400) {
+            result = assembler.receive(payload, isKeyframe: true) ?? result
+        }
+        XCTAssertEqual(result?.bitstream, bitstream)
+        XCTAssertEqual(result?.frameNumber, 9)
+    }
+}
+
+final class AudioSequenceGuardTests: XCTestCase {
+    func testForwardSequencesAreAccepted() {
+        var guardian = AudioSequenceGuard()
+        XCTAssertEqual(guardian.accept(10), .accept)
+        XCTAssertEqual(guardian.accept(11), .accept)
+        XCTAssertEqual(guardian.accept(300), .accept)
+        XCTAssertEqual(guardian.lastAccepted, 300)
+    }
+
+    func testSmallStepBackIsADuplicateAndDoesNotMoveTheAnchor() {
+        var guardian = AudioSequenceGuard()
+        _ = guardian.accept(100)
+        XCTAssertEqual(guardian.accept(100), .duplicate)
+        XCTAssertEqual(guardian.accept(99), .duplicate)
+        XCTAssertEqual(guardian.lastAccepted, 100)
+        XCTAssertEqual(guardian.accept(101), .accept)
+    }
+
+    func testLargeStepBackIsARestartAndReanchors() {
+        var guardian = AudioSequenceGuard()
+        _ = guardian.accept(5000)
+        XCTAssertEqual(guardian.accept(0), .restarted)
+        XCTAssertEqual(guardian.lastAccepted, 0)
+        XCTAssertEqual(guardian.accept(1), .accept)
+    }
+
+    func testWrapAroundCountsAsForward() {
+        var guardian = AudioSequenceGuard()
+        _ = guardian.accept(UInt32.max)
+        XCTAssertEqual(guardian.accept(0), .accept)
+    }
+}
+
+final class SendSchedulerTests: XCTestCase {
+    func testControlThenAudioThenVideo() {
+        var scheduler = SendScheduler()
+        scheduler.enqueue(Data([3]), lane: .video)
+        scheduler.enqueue(Data([2]), lane: .audio)
+        scheduler.enqueue(Data([1]), lane: .control)
+        XCTAssertEqual(scheduler.dequeue()?.lane, .control)
+        XCTAssertEqual(scheduler.dequeue()?.lane, .audio)
+        XCTAssertEqual(scheduler.dequeue()?.lane, .video)
+        XCTAssertNil(scheduler.dequeue())
+    }
+
+    func testConcurrentWriteWindowIsRespected() {
+        var scheduler = SendScheduler(policy: SendPolicy(maximumConcurrentWrites: 2))
+        for _ in 0..<3 { scheduler.enqueue(Data([0]), lane: .video) }
+        let a = scheduler.dequeue()!, b = scheduler.dequeue()!
+        XCTAssertNil(scheduler.dequeue())
+        scheduler.completed(a)
+        XCTAssertNotNil(scheduler.dequeue())
+        scheduler.completed(b)
+    }
+
+    func testVideoIsDroppedAboveTheBacklogButKeyframesNever() {
+        var scheduler = SendScheduler(policy: SendPolicy(maximumQueuedBytes: 10))
+        scheduler.enqueue(Data(count: 20), lane: .video)
+        let write = scheduler.dequeue()!
+        XCTAssertFalse(scheduler.admitVideo(isKeyframe: false))
+        XCTAssertTrue(scheduler.admitVideo(isKeyframe: true))
+        XCTAssertEqual(scheduler.droppedVideoFrames, 1)
+        scheduler.completed(write)
+        XCTAssertTrue(scheduler.admitVideo(isKeyframe: false))
+    }
+
+    func testAudioIsShedOnlyBrieflyAndOnlyOnItsOwnBacklog() {
+        var scheduler = SendScheduler(policy: SendPolicy(maximumQueuedBytes: 10, maximumQueuedAudioBytes: 10, maximumAudioSilence: 1))
+        let t0 = Date(timeIntervalSince1970: 1000)
+        // Video backlog alone must not shed audio.
+        scheduler.enqueue(Data(count: 100), lane: .video)
+        let video = scheduler.dequeue()!
+        XCTAssertTrue(scheduler.admitAudio(now: t0))
+        // Audio backlog does, for at most the silence window.
+        scheduler.enqueue(Data(count: 100), lane: .audio)
+        let audio = scheduler.dequeue()!
+        XCTAssertFalse(scheduler.admitAudio(now: t0.addingTimeInterval(0.5)))
+        XCTAssertTrue(scheduler.admitAudio(now: t0.addingTimeInterval(1.5)))
+        scheduler.completed(video)
+        scheduler.completed(audio)
+        XCTAssertEqual(scheduler.backlog.total, 0)
+    }
+
+    func testCountersReanchorWhenNothingIsInFlight() {
+        var scheduler = SendScheduler()
+        scheduler.enqueue(Data(count: 50), lane: .audio)
+        let write = scheduler.dequeue()!
+        // Simulate a lost accounting increment by completing a heavier write.
+        scheduler.completed(SendScheduler.Write(data: Data(count: 10), lane: .audio))
+        XCTAssertEqual(scheduler.backlog.total, 0)
+        XCTAssertEqual(scheduler.backlog.audio, 0)
+        _ = write
+    }
+
+    func testDropQueuedVideoKeepsAudio() {
+        var scheduler = SendScheduler()
+        scheduler.enqueue(Data([1]), lane: .video)
+        scheduler.enqueue(Data([2]), lane: .audio)
+        scheduler.dropQueuedVideo()
+        XCTAssertEqual(scheduler.queuedCount, 1)
+        XCTAssertEqual(scheduler.dequeue()?.lane, .audio)
+    }
+}
+
+final class PairingTests: XCTestCase {
+    let client = ClientCapabilities(deviceName: "iPhone", deviceID: "dev-1", preferredAudioSampleRate: 48_000)
+    let host = HostCapabilities(deviceName: "Mac", remoteHosts: ["100.64.0.1"], supportsRemoteAccess: true, supportsVideoHold: true, supportsAudioToggle: true, supportsWindowSelection: true)
+
+    func testFullPairingFlow() throws {
+        var pairing = PairingHost(capabilities: host)
+        let hello = client.hello()
+        XCTAssertEqual(hello.supportedAudioCodecs, ["aac_lc", "pcm_f32le"])
+
+        let (challenge, code) = pairing.begin(hello: hello, code: "123456")!
+        XCTAssertEqual(challenge.type, .challenge)
+        XCTAssertNil(challenge.code, "the code never crosses the wire")
+        XCTAssertEqual(PairingClient.interpret(challenge), .codeRequested(hostName: "Mac"))
+
+        guard case .rejected(let failure) = pairing.verify(client.codeVerify("000000")) else { return XCTFail() }
+        XCTAssertEqual(PairingClient.interpret(failure), .failed(reason: "Incorrect code"))
+        XCTAssertTrue(pairing.isActive, "a wrong code does not end the attempt")
+
+        let secret = SharedSecret.generate()
+        guard case .paired(let issued, let success) = pairing.verify(client.codeVerify(code), secret: secret) else { return XCTFail() }
+        XCTAssertEqual(issued, secret)
+        XCTAssertEqual(pairing.peerDeviceID, "dev-1")
+        XCTAssertFalse(pairing.isActive)
+
+        guard case .paired(let stored, let peer, let name) = PairingClient.interpret(success) else { return XCTFail() }
+        XCTAssertEqual(stored, secret)
+        XCTAssertEqual(name, "Mac")
+        XCTAssertTrue(peer.supportsRemoteAccess)
+        XCTAssertEqual(peer.remoteHosts, ["100.64.0.1"])
+    }
+
+    func testExpiredAttemptIgnoresTheCode() {
+        var pairing = PairingHost(capabilities: host)
+        let t0 = Date()
+        let (_, code) = pairing.begin(hello: client.hello(), validFor: 60, now: t0)!
+        XCTAssertEqual(pairing.verify(client.codeVerify(code), now: t0.addingTimeInterval(61)), .ignored)
+        XCTAssertFalse(pairing.isActive)
+    }
+
+    func testAuthenticationNegotiatesAndRejects() {
+        let secret = SharedSecret.generate()
+        let lookup: (String) -> SharedSecret? = { $0 == "dev-1" ? secret : nil }
+
+        guard case .authenticated(let session) = HostAuthenticator.authenticate(client.authRequest(secret: secret), storedSecret: lookup, capabilities: host) else { return XCTFail() }
+        XCTAssertEqual(session.audioCodec, .aacLC)
+        XCTAssertEqual(session.videoCodec, .hevc)
+        XCTAssertEqual(session.peer.preferredAudioSampleRate, 48_000)
+        XCTAssertEqual(session.reply.type, .authSuccess)
+        XCTAssertEqual(session.reply.selectedAudioCodec, "aac_lc")
+        XCTAssertEqual(session.reply.supportsVideoHold, true)
+
+        guard case .authenticated(let forcedPCM) = HostAuthenticator.authenticate(client.authRequest(secret: secret), storedSecret: lookup, capabilities: host, audioPreferences: [.pcmFloat32]) else { return XCTFail() }
+        XCTAssertEqual(forcedPCM.audioCodec, .pcmFloat32)
+
+        let wrong = SharedSecret.generate()
+        guard case .rejected(let reply) = HostAuthenticator.authenticate(client.authRequest(secret: wrong), storedSecret: lookup, capabilities: host) else { return XCTFail() }
+        XCTAssertEqual(reply.error, "Authentication failed")
+
+        var unknown = client
+        unknown.deviceID = "stranger"
+        guard case .rejected(let unpaired) = HostAuthenticator.authenticate(unknown.authRequest(secret: secret), storedSecret: lookup, capabilities: host) else { return XCTFail() }
+        XCTAssertEqual(unpaired.error, "Device not paired")
+
+        guard case .rejected = HostAuthenticator.authenticate(PairingMessage(type: .authRequest, deviceID: "dev-1", sharedSecret: "zz"), storedSecret: lookup, capabilities: host) else { return XCTFail() }
+    }
+
+    func testLegacyClientAuthenticatesToLegacyCodecs() {
+        let secret = SharedSecret.generate()
+        let legacy = PairingMessage(type: .authRequest, deviceName: "Old iPhone", deviceID: "dev-1", sharedSecret: secret.hex)
+        guard case .authenticated(let session) = HostAuthenticator.authenticate(legacy, storedSecret: { _ in secret }, capabilities: host) else { return XCTFail() }
+        XCTAssertEqual(session.audioCodec, .pcmFloat32)
+        XCTAssertEqual(session.videoCodec, .h264)
+        XCTAssertTrue(session.peer.wantsAudio)
+    }
+
+    func testClientInterpretsAuthReplies() {
+        let success = PairingMessage(type: .authSuccess, deviceName: "Mac", supportsVideoHold: true, selectedAudioCodec: "aac_lc", selectedVideoCodec: "hevc")
+        guard case .authenticated(let peer, "Mac", .aacLC, .hevc) = PairingClient.interpret(success) else { return XCTFail() }
+        XCTAssertTrue(peer.supportsVideoHold)
+        XCTAssertEqual(PairingClient.interpret(PairingMessage(type: .unpaired)), .unpaired)
+        XCTAssertEqual(PairingClient.interpret(PairingMessage(type: .hello)), .unexpected(.hello))
+    }
+
+    func testSharedSecretHexRoundTripAndConstantTimeCompare() {
+        let secret = SharedSecret.generate()
+        XCTAssertEqual(secret.hex.count, 64)
+        XCTAssertEqual(SharedSecret(hex: secret.hex), secret)
+        XCTAssertTrue(secret.matches(SharedSecret(hex: secret.hex)!))
+        XCTAssertFalse(secret.matches(SharedSecret.generate()))
+        XCTAssertNil(SharedSecret(hex: "abc"))
+        XCTAssertNil(SharedSecret(hex: String(repeating: "zz", count: 32)))
+        XCTAssertEqual(PairingCode.generate().count, 6)
+    }
+}
+
+final class LinkHealthTests: XCTestCase {
+    func testProbeAbandonsStaleProbes() {
+        var probe = RoundTripProbe(staleAfter: 10)
+        let t0 = Date()
+        XCTAssertTrue(probe.shouldSend(now: t0))
+        XCTAssertFalse(probe.shouldSend(now: t0.addingTimeInterval(5)))
+        XCTAssertTrue(probe.shouldSend(now: t0.addingTimeInterval(11)), "a lost pong never stops probing")
+        XCTAssertEqual(probe.receivedPong(now: t0.addingTimeInterval(11.25)), 0.25)
+        XCTAssertNil(probe.receivedPong(now: t0.addingTimeInterval(12)))
+    }
+
+    func testHeartbeatMonitor() {
+        let t0 = Date()
+        var monitor = HeartbeatMonitor(timeout: 30, now: t0)
+        XCTAssertFalse(monitor.isTimedOut(now: t0.addingTimeInterval(29)))
+        XCTAssertTrue(monitor.isTimedOut(now: t0.addingTimeInterval(31)))
+        monitor.heard(now: t0.addingTimeInterval(31))
+        XCTAssertFalse(monitor.isTimedOut(now: t0.addingTimeInterval(40)))
+    }
+
+    func testVideoHoldResumeAlwaysRepairsTheDecoder() {
+        var hold = VideoHold()
+        hold.pause()
+        XCTAssertTrue(hold.isHeld)
+        XCTAssertEqual(hold.resume(), [.resendParameterSets, .requestKeyframe])
+        XCTAssertFalse(hold.isHeld)
+    }
+}
+
+final class QualityLadderTests: XCTestCase {
+    let tiers: [QualityPreset] = [.p360_30, .p480_30, .p720_30, .p1080_30]
+
+    func testStartsAtTheTopAndStepsDownAfterSustainedBadFeedback() {
+        var ladder = QualityLadder(tiers: tiers)
+        let t0 = Date()
+        XCTAssertEqual(ladder.current, .p1080_30)
+        ladder.feedback(0.2)
+        XCTAssertNil(ladder.evaluate(now: t0))
+        XCTAssertNil(ladder.evaluate(now: t0.addingTimeInterval(2)))
+        XCTAssertEqual(ladder.evaluate(now: t0.addingTimeInterval(3.5)), .p720_30)
+        // Minimum interval prevents a second step right away; the low timer restarts.
+        XCTAssertNil(ladder.evaluate(now: t0.addingTimeInterval(5)))
+        XCTAssertNil(ladder.evaluate(now: t0.addingTimeInterval(7.9)))
+        XCTAssertEqual(ladder.evaluate(now: t0.addingTimeInterval(9.6)), .p480_30)
+        XCTAssertNil(ladder.evaluate(now: t0.addingTimeInterval(12.6)))
+    }
+
+    func testStepsUpSlowlyAndNotPastTheTop() {
+        var ladder = QualityLadder(tiers: tiers, startingAt: .p720_30)
+        let t0 = Date()
+        ladder.feedback(0.95)
+        XCTAssertNil(ladder.evaluate(now: t0))
+        XCTAssertNil(ladder.evaluate(now: t0.addingTimeInterval(11)))
+        XCTAssertEqual(ladder.evaluate(now: t0.addingTimeInterval(12.5)), .p1080_30)
+        XCTAssertNil(ladder.evaluate(now: t0.addingTimeInterval(100)))
+    }
+
+    func testMiddlingFeedbackResetsTimers() {
+        var ladder = QualityLadder(tiers: tiers)
+        let t0 = Date()
+        ladder.feedback(0.2)
+        XCTAssertNil(ladder.evaluate(now: t0))
+        ladder.feedback(0.6)
+        XCTAssertNil(ladder.evaluate(now: t0.addingTimeInterval(2)))
+        ladder.feedback(0.2)
+        XCTAssertNil(ladder.evaluate(now: t0.addingTimeInterval(4)), "the low timer restarted")
+    }
+
+    func testManualSetMovesTheLadder() {
+        var ladder = QualityLadder(tiers: tiers)
+        ladder.set(.p360_30)
+        XCTAssertEqual(ladder.current, .p360_30)
+        XCTAssertEqual(ladder.index, 0)
+    }
+}
