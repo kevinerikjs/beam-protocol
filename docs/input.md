@@ -20,13 +20,25 @@ Without the entitlement, `IOHIDUserDeviceCreateWithProperties` returns nil. Ther
 
 A host that does not have the entitlement must not set `HostCapabilities.supportsControllerInput`. It still receives `.input` packets from older clients. Recognise the type and return, before any JSON decode. Letting sixty binary packets a second fall into the JSON path fills the log.
 
+### Which controller the Mac sees
+
+macOS's GameController framework only adopts controllers it has a profile for. A generic HID gamepad exists in the IORegistry, but `GCController.controllers()` never lists it, and each game that reads raw HID guesses its own layout. `VirtualGamepad` therefore presents a known identity, chosen with `GamepadProfile`:
+
+| Profile | Identity | Verified |
+|---|---|---|
+| `.xboxOne` (default) | Xbox Wireless Controller, Model 1708, Bluetooth | Yes, every button and axis through `GCController` on macOS 26 |
+| `.dualShock4` | DualShock 4 (second revision), USB, answers calibration and identity feature reports | Layout from the documented USB report, not yet verified on hardware |
+| `.generic` | Our own vendor and product id | Raw HID readers only |
+
+The Xbox button cannot be forwarded: iOS reserves it for Game Center, so it never reaches the client app.
+
 ### Host
 
 ```swift
 import Phoros, PhorosSession, PhorosInput
 
 let capabilities = HostCapabilities(deviceName: "Mac", supportsControllerInput: true)
-let gamepad = VirtualGamepad(productName: "My App Controller", manufacturer: "My App")
+let gamepad = VirtualGamepad(profile: .xboxOne)
 gamepad.onEvent = { event in
     switch event {
     case .created: log("virtual gamepad created")
@@ -47,7 +59,7 @@ gamepad.release()
 
 The device appears on the first connected report and disappears on a report with the flag clear, on `release()`, or when the instance is dropped. Games see a controller plug in and unplug.
 
-`GamepadReport` holds the HID descriptor and the mapping from `ControllerReport` to the nine report bytes. The descriptor is a generic desktop gamepad: sixteen buttons, a hat switch for the d-pad, X/Y/Z/Rz for the sticks and Rx/Ry for the triggers. Vendor id `0x1209` and product id `0xBEA0` are fixed. Games key their remapping profiles on that pair.
+`GamepadReport`, `XboxOneReport` and `DualShock4Report` hold each profile's HID descriptor and the mapping from `ControllerReport` to report bytes. All three are pure and pinned by tests.
 
 ### Client
 

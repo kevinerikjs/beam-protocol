@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.3.0
+
+Protocol version stays 1. Additive.
+
+- `PhorosInput`: `GamepadProfile`. `VirtualGamepad` now presents a known controller identity, `.xboxOne` by default or `.dualShock4`, with that controller's descriptor and report layout, so macOS's GameController framework adopts the device and every game gets the same mapping. `.generic` remains for raw-HID readers. The Xbox layout was verified through `GCController` on macOS 26: every button and axis lands on its name. The DualShock 4 layout follows the documented USB report and answers the driver's calibration and identity feature reports, but has not been verified on hardware.
+- `VirtualGamepad` cancels the activated device before releasing it (IOKit aborted otherwise) and answers feature-report reads.
+- 102 tests.
+
 ## 1.2.0
 
 Protocol version stays 1. Additive.

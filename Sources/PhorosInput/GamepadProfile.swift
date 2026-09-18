@@ -303,25 +303,7 @@ public enum XboxOneReport {
         out[14] = UInt8(bits & 0xFF)
         out[15] = UInt8(bits >> 8)
         out[16] = b.contains(.options) ? 0x01 : 0x00   // View, Consumer AC Back
-        if let scan = viewScan(pressed: b.contains(.options)) {
-            out[14] = 0; out[15] = 0; out[16] = 0
-            out[14 + scan / 8] |= 1 << UInt8(scan % 8)
-        }
         return out
-    }
-
-    // Calibration aid, active only with PHOROS_VIEW_SCAN=1 in the environment:
-    // each View press lights the next of the 24 bits in bytes 14-16 and logs it.
-    private static var scanIndex = -1
-    private static var scanWasPressed = false
-    private static func viewScan(pressed: Bool) -> Int? {
-        guard ProcessInfo.processInfo.environment["PHOROS_VIEW_SCAN"] == "1" else { return nil }
-        if pressed && !scanWasPressed {
-            scanIndex = (scanIndex + 1) % 24
-            NSLog("PHOROS_VIEW_SCAN press -> byte %d bit %d", 14 + scanIndex / 8, scanIndex % 8)
-        }
-        scanWasPressed = pressed
-        return pressed ? scanIndex : nil
     }
 
     /// Report 2: the Xbox button.
