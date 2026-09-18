@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/assets/phoros-mark.png" width="160" alt="Phoros mark: an amber loop carrying four packets across a dark tile">
+</p>
+
 <h1 align="center">Phoros</h1>
 
 <p align="center">
@@ -10,6 +14,7 @@
   <img alt="Swift 5.9" src="https://img.shields.io/badge/Swift-5.9-F09A1E?labelColor=0A0A0A">
   <img alt="Platforms" src="https://img.shields.io/badge/iOS%2015%20%7C%20macOS%2012%20%7C%20tvOS%2015%20%7C%20visionOS%201-F09A1E?labelColor=0A0A0A">
   <img alt="SwiftPM" src="https://img.shields.io/badge/SwiftPM-compatible-F09A1E?labelColor=0A0A0A">
+  <a href="https://swiftpackageindex.com/kevinerikjs/phoros"><img alt="Swift Package Index" src="https://img.shields.io/badge/Swift%20Package%20Index-listed-F09A1E?labelColor=0A0A0A"></a>
   <a href="LICENSE"><img alt="MIT" src="https://img.shields.io/badge/license-MIT-F09A1E?labelColor=0A0A0A"></a>
 </p>
 
