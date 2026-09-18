@@ -125,6 +125,12 @@ public struct PairingMessage: Codable, Equatable, Sendable {
     /// the client shows its built-in media keys.
     public var controls: [ControlButton]?
 
+    /// `true` from hosts that replay `.input` packets into a virtual game
+    /// controller. Absent means the host drops them, so the client should not
+    /// sample a controller or show that one is forwarded. Sent on
+    /// `.pairSuccess` and `.authSuccess`.
+    public var supportsControllerInput: Bool?
+
     // MARK: Client capabilities and preferences (client to host)
 
     /// The client's native audio hardware rate, so the host can encode to it
@@ -159,6 +165,7 @@ public struct PairingMessage: Codable, Equatable, Sendable {
         supportsAudioToggle: Bool? = nil,
         supportsWindowSelection: Bool? = nil,
         controls: [ControlButton]? = nil,
+        supportsControllerInput: Bool? = nil,
         preferredAudioSampleRate: Double? = nil,
         supportedAudioCodecs: [String]? = nil,
         supportedVideoCodecs: [String]? = nil,
@@ -178,6 +185,7 @@ public struct PairingMessage: Codable, Equatable, Sendable {
         self.supportsAudioToggle = supportsAudioToggle
         self.supportsWindowSelection = supportsWindowSelection
         self.controls = controls
+        self.supportsControllerInput = supportsControllerInput
         self.preferredAudioSampleRate = preferredAudioSampleRate
         self.supportedAudioCodecs = supportedAudioCodecs
         self.supportedVideoCodecs = supportedVideoCodecs
@@ -191,6 +199,7 @@ public struct PairingMessage: Codable, Equatable, Sendable {
         case selectedAudioCodec, selectedVideoCodec
         case supportsAudioToggle, supportsWindowSelection
         case controls = "phoneControls"
+        case supportsControllerInput
         case preferredAudioSampleRate, supportedAudioCodecs, supportedVideoCodecs, wantsAudio
     }
 }

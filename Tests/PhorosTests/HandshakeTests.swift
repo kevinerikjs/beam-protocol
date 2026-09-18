@@ -28,6 +28,7 @@ final class HandshakeTests: XCTestCase {
         XCTAssertFalse(peer.supportsRemoteAccess)
         XCTAssertFalse(peer.supportsAudioToggle)
         XCTAssertFalse(peer.supportsWindowSelection)
+        XCTAssertFalse(peer.supportsControllerInput)
         XCTAssertTrue(peer.wantsAudio)
         XCTAssertEqual(peer.remoteHosts, [])
         XCTAssertEqual(peer.controls, [])
@@ -56,6 +57,15 @@ final class HandshakeTests: XCTestCase {
         let future = Data(#"{"type":"auth_request","deviceID":"d","sharedSecret":"s","supportsTeleportation":true,"supportedAudioCodecs":["opus","aac_lc"]}"#.utf8)
         let message = try JSONDecoder().decode(PairingMessage.self, from: future)
         XCTAssertEqual(PeerCapabilities(message).audioCodecs, [.aacLC, .pcmFloat32])
+    }
+
+    func testControllerInputCapabilityIsAdvertisedOnlyWhenTrue() throws {
+        let host = PairingMessage(type: .authSuccess, supportsControllerInput: true)
+        XCTAssertEqual(try json(host)["supportsControllerInput"] as? Bool, true)
+        XCTAssertTrue(PeerCapabilities(host).supportsControllerInput)
+
+        let explicitNo = Data(#"{"type":"auth_success","supportsControllerInput":false}"#.utf8)
+        XCTAssertFalse(PeerCapabilities(try JSONDecoder().decode(PairingMessage.self, from: explicitNo)).supportsControllerInput)
     }
 
     // MARK: Capability interpretation

@@ -1,4 +1,4 @@
 version: 1
 builder:
   configs:
-    - documentation_targets: [Phoros, PhorosSession, PhorosNetwork, PhorosMedia]
+    - documentation_targets: [Phoros, PhorosSession, PhorosNetwork, PhorosMedia, PhorosInput]

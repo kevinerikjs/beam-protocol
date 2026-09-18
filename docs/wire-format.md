@@ -127,6 +127,8 @@ Buttons, bit 0 upward: A, B, X, Y, left shoulder, right shoulder, left thumbstic
 
 Packet flags bit 0 set means a controller is attached. A report with the bit clear is neutral and tells the host to release its virtual device. The client sends reports at up to 60 Hz. A host that cannot replay input recognises the type and drops it.
 
+A host that can replay input says so with `supportsControllerInput` in `pair_success` and `auth_success`. A client should not sample a controller for a host that did not. `PhorosInput` has both ends: `ControllerSampler` for the client and `VirtualGamepad` for a macOS host. See [input.md](input.md).
+
 ## Handshake messages
 
 JSON object. `type` is required. Every other key is optional and omitted when not applicable.
@@ -166,6 +168,7 @@ JSON object. `type` is required. Every other key is optional and omitted when no
 | `supportsAudioToggle` | bool | auth_success | host acts on `audio_enable_request` |
 | `supportsWindowSelection` | bool | auth_success | host answers `window_list_request` |
 | `phoneControls` | [ControlButton] | auth_success | buttons the client should render (Swift: `controls`) |
+| `supportsControllerInput` | bool | pair_success, auth_success | host replays `input` packets into a virtual game controller. Added in package 1.1.0 |
 | `preferredAudioSampleRate` | number | auth_request | client's hardware rate |
 | `supportedAudioCodecs` | [string] | hello, auth_request | codec names the client decodes, preferred first |
 | `supportedVideoCodecs` | [string] | hello, auth_request | codec names the client decodes, preferred first |

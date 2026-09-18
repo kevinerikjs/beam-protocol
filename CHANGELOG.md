@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.1.0
+
+Protocol version stays 1. Everything here is additive.
+
+- `Phoros`: `PairingMessage.supportsControllerInput`, sent by hosts that replay `.input` packets. `PeerCapabilities.supportsControllerInput` reads it with the conservative default.
+- `PhorosSession`: `HostCapabilities.supportsControllerInput`.
+- `PhorosInput`, new product: `ControllerSampler` and `ReportThrottle` for the client, `VirtualGamepad` (macOS 13+, `IOHIDUserDevice`) for the host, `GamepadReport` for the HID descriptor and report bytes, and `ControllerReport.init(GCExtendedGamepad)`.
+- 93 tests.
+
 ## 1.0.0
 
 First release. Protocol version 1: the wire contract that Beam 3.0 and Beacon 1.4 speak.

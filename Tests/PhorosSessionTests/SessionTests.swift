@@ -158,7 +158,7 @@ final class SendSchedulerTests: XCTestCase {
 
 final class PairingTests: XCTestCase {
     let client = ClientCapabilities(deviceName: "iPhone", deviceID: "dev-1", preferredAudioSampleRate: 48_000)
-    let host = HostCapabilities(deviceName: "Mac", remoteHosts: ["100.64.0.1"], supportsRemoteAccess: true, supportsVideoHold: true, supportsAudioToggle: true, supportsWindowSelection: true)
+    let host = HostCapabilities(deviceName: "Mac", remoteHosts: ["100.64.0.1"], supportsRemoteAccess: true, supportsVideoHold: true, supportsAudioToggle: true, supportsWindowSelection: true, supportsControllerInput: true)
 
     func testFullPairingFlow() throws {
         var pairing = PairingHost(capabilities: host)
@@ -184,6 +184,7 @@ final class PairingTests: XCTestCase {
         XCTAssertEqual(stored, secret)
         XCTAssertEqual(name, "Mac")
         XCTAssertTrue(peer.supportsRemoteAccess)
+        XCTAssertTrue(peer.supportsControllerInput)
         XCTAssertEqual(peer.remoteHosts, ["100.64.0.1"])
     }
 

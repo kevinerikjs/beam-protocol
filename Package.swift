@@ -20,15 +20,20 @@ let package = Package(
         .library(name: "PhorosNetwork", targets: ["PhorosNetwork"]),
         // Codecs shaped for the wire: H.264/HEVC via VideoToolbox, AAC-LC via AudioToolbox,
         // parameter sets, Annex B, sample buffers.
-        .library(name: "PhorosMedia", targets: ["PhorosMedia"])
+        .library(name: "PhorosMedia", targets: ["PhorosMedia"]),
+        // Game controller forwarding: sampling on the client, a virtual HID gamepad on
+        // a macOS host, and the HID report mapping between them.
+        .library(name: "PhorosInput", targets: ["PhorosInput"])
     ],
     targets: [
         .target(name: "Phoros"),
         .target(name: "PhorosSession", dependencies: ["Phoros"]),
         .target(name: "PhorosNetwork", dependencies: ["Phoros"]),
         .target(name: "PhorosMedia", dependencies: ["Phoros"]),
+        .target(name: "PhorosInput", dependencies: ["Phoros"]),
         .testTarget(name: "PhorosTests", dependencies: ["Phoros"]),
         .testTarget(name: "PhorosSessionTests", dependencies: ["PhorosSession"]),
-        .testTarget(name: "PhorosMediaTests", dependencies: ["PhorosMedia"])
+        .testTarget(name: "PhorosMediaTests", dependencies: ["PhorosMedia"]),
+        .testTarget(name: "PhorosInputTests", dependencies: ["PhorosInput"])
     ]
 )

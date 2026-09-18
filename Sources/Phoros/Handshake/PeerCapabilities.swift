@@ -46,6 +46,9 @@ public struct PeerCapabilities: Equatable, Sendable {
     /// Buttons the peer asked to have rendered. Empty when it sent none.
     public var controls: [ControlButton]
 
+    /// The peer replays `.input` packets into a virtual game controller.
+    public var supportsControllerInput: Bool
+
     public init(_ message: PairingMessage) {
         audioCodecs = PeerCapabilities.codecs(
             from: message.supportedAudioCodecs, parse: AudioCodecID.init(wireName:), fallback: .pcmFloat32
@@ -61,6 +64,7 @@ public struct PeerCapabilities: Equatable, Sendable {
         preferredAudioSampleRate = message.preferredAudioSampleRate
         remoteHosts = message.remoteHosts ?? []
         controls = message.controls ?? []
+        supportsControllerInput = message.supportsControllerInput ?? false
     }
 
     /// The first of `preferences` the peer can decode. Falls back to the
