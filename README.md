@@ -21,7 +21,7 @@
 
 <br>
 
-Phoros is a low-latency protocol, and the plumbing under it, for apps that stream video and audio between Apple devices and send input back in real time. Pairing, framing, codec negotiation, hardware encoders, a virtual game controller, keyboard and click replay: the parts every such app rebuilds, done once and versioned.
+Phoros is a Swift package for real-time streaming between Apple devices: video and audio in one direction, input in the other. It covers the wire protocol and the layers above it. Pairing, framing, codec negotiation, hardware encoders, a virtual game controller, keyboard and click replay: the parts every such app rebuilds, done once and versioned.
 
 ```
 Mac game       →  iPad, controller input back
