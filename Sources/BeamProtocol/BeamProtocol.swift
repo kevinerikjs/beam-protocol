@@ -306,8 +306,8 @@ public enum BeamControlMessageType: String, Codable {
     case audioFormatChanged = "audio_format_changed" // macOS → iOS: active audio sample rate/channels
     case videoPause         = "video_pause"    // iOS → macOS: hold video, keep audio flowing
     case videoResume        = "video_resume"   // iOS → macOS: resume video
-    case audioEnableRequest = "audio_enable_request" // iOS → macOS: start/stop sending audio to this client (BEAM-34)
-    case windowListRequest  = "window_list_request"  // iOS → macOS: send me the Mac's capturable windows (BEAM-35)
+    case audioEnableRequest = "audio_enable_request" // Client requests an audio stream state change.
+    case windowListRequest  = "window_list_request"  // Client requests the host's capturable windows.
     case windowList         = "window_list"          // macOS → iOS: reply to the above
     case windowSelectRequest = "window_select_request" // iOS → macOS: lock capture to this window (0 = full display)
     case captureModeChanged = "capture_mode_changed" // macOS → iOS: what the host is capturing now
