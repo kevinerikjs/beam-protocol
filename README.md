@@ -21,7 +21,7 @@
 
 <br>
 
-Phoros is a low-latency protocol and the plumbing under it for apps that stream video and audio from one Apple device to another and send input back in real time. Pairing, framing, codec negotiation, hardware encoders, a virtual game controller, keyboard and click replay: the parts every such app rebuilds, done once and versioned.
+Phoros is a low-latency protocol, and the plumbing under it, for apps that stream video and audio between Apple devices and send input back in real time. Pairing, framing, codec negotiation, hardware encoders, a virtual game controller, keyboard and click replay: the parts every such app rebuilds, done once and versioned.
 
 ```
 Mac game       →  iPad, controller input back
@@ -30,7 +30,7 @@ Mac desktop    →  Vision Pro remote display, clicks and keys back
 iPad app       →  Mac, touch and text back
 ```
 
-Screen mirroring is one use, not the definition. Phoros ships inside [Beam](https://github.com/kevinerikjs/beam-ios) and [Beacon](https://github.com/kevinerikjs/beacon-macos), an iPhone and Mac pair on the App Store (Beam 3.1, Beacon 1.5.0), and is published so you can build a different pair without repeating what they learned in production. Five products, take what you need:
+Screen mirroring is one use, not the definition. Phoros ships inside [Beam](https://github.com/kevinerikjs/beam-ios) and [Beacon](https://github.com/kevinerikjs/beacon-macos), an iPhone and Mac pair on the App Store. It is published so you can build a different pair without repeating what they learned in production. Five products, take what you need:
 
 | Product | What it is | Depends on |
 |---|---|---|
