@@ -38,7 +38,7 @@ Screen mirroring is one use, not the definition. Phoros ships inside [Beam](http
 | **`PhorosSession`** | The logic on top: pairing and auth state machines, frame reassembly, audio sequencing, send scheduling, quality adaptation. No I/O. | `Phoros` |
 | **`PhorosNetwork`** | The transport: one call gives you a framed, size-bounded connection over `Network.framework`. | `Phoros`, Network |
 | **`PhorosMedia`** | The codecs, shaped for the wire: H.264/HEVC via VideoToolbox, AAC-LC via AudioToolbox, parameter sets, Annex B, sample buffers. | `Phoros`, VideoToolbox, AudioToolbox |
-| **`PhorosInput`** | Every input path back to the host: game controller sampling and a virtual HID gamepad, keyboard, text, media-key and click replay, and the geometry from a tap on the frame to a point on the source. | `Phoros`, GameController, IOKit, CoreGraphics |
+| **`PhorosInput`** | Input back to the host: controller sampling, a virtual HID gamepad, keyboard, text, media-key and click replay, and tap-to-source geometry. | `Phoros`, GameController, IOKit, CoreGraphics |
 
 ## Why
 

@@ -13,7 +13,7 @@ let link = PhorosConnection(to: endpoint)              // client
 let link = PhorosConnection(accepting: nwConnection)   // host, from an NWListener
 
 link.onReady = { … }
-link.onWaiting = { error in … }   // no route right now; start a timer and cancel() if it expires
+link.onWaiting = { error in … }   // no route right now. Start a timer and cancel() if it expires
 link.onFrame = { frame in … }
 link.onEnd = { reason in … }      // closedByPeer, transportFailed, protocolViolation, cancelled
 link.start()
