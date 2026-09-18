@@ -131,3 +131,41 @@ final class KeyModifiersTests: XCTestCase {
     }
     #endif
 }
+
+final class GamepadProfileTests: XCTestCase {
+    func testIdentitiesArePinned() {
+        XCTAssertEqual(GamepadProfile.dualShock4.vendorID, 0x054C)
+        XCTAssertEqual(GamepadProfile.dualShock4.productID, 0x09CC)
+        XCTAssertEqual(GamepadProfile.xboxOne.vendorID, 0x045E)
+        XCTAssertEqual(GamepadProfile.xboxOne.productID, 0x02FD)
+        XCTAssertEqual(GamepadProfile.generic.inputReport(for: .neutral), GamepadReport.bytes(for: .neutral))
+    }
+
+    func testDualShockReport() {
+        let neutral = DualShock4Report.bytes(for: .neutral)
+        XCTAssertEqual(neutral.count, 64)
+        XCTAssertEqual(Array(neutral[0...5]), [0x01, 127, 127, 127, 127, 0x08])
+        let pressed = DualShock4Report.bytes(for: ControllerReport(buttons: [.a, .x, .leftShoulder, .home, .dpadUp], leftTrigger: 255))
+        XCTAssertEqual(pressed[5], 0b0011_0000 | 0)          // cross + square, hat up
+        XCTAssertEqual(pressed[6] & 0x0F, 0b0101)            // L1 + L2
+        XCTAssertEqual(pressed[7] & 0x03, 0x01)              // PS
+        XCTAssertEqual(pressed[8], 255)
+        XCTAssertEqual(DualShock4Report.featureReport(id: 0x02)?.count, 37)
+        XCTAssertNil(DualShock4Report.featureReport(id: 0x99))
+    }
+
+    func testXboxReport() {
+        let neutral = XboxOneReport.bytes(for: .neutral)
+        XCTAssertEqual(neutral.count, 17)
+        XCTAssertEqual(neutral[0], 0x01)
+        XCTAssertEqual(UInt16(neutral[1]) | UInt16(neutral[2]) << 8, 32767, accuracy: 2)
+        XCTAssertEqual(neutral[13], 0, "hat released is 0 on Xbox")
+        let pressed = XboxOneReport.bytes(for: ControllerReport(buttons: [.a, .y, .menu, .options, .dpadRight], leftX: 32767, rightTrigger: 255))
+        XCTAssertEqual(UInt16(pressed[1]) | UInt16(pressed[2]) << 8, 65535)
+        XCTAssertEqual(UInt16(pressed[11]) | UInt16(pressed[12]) << 8, 1023)
+        XCTAssertEqual(pressed[13], 3)
+        XCTAssertEqual(pressed[14], 0b0001_0001)
+        XCTAssertEqual(pressed[15], 0b1000_1000)
+        XCTAssertEqual(XboxOneReport.homeReport(pressed: true), [0x02, 0x01])
+    }
+}

@@ -12,7 +12,7 @@ import Phoros
 /// plugged in and unplugged.
 ///
 /// ```swift
-/// let gamepad = VirtualGamepad()
+/// let gamepad = VirtualGamepad(profile: .xboxOne)
 /// gamepad.onEvent = { event in log(event) }
 /// // on every `.input` packet:
 /// if let report = ControllerReport.parse(from: packet.payload) {
@@ -44,17 +44,20 @@ public final class VirtualGamepad: @unchecked Sendable {
     /// Delivered on the gamepad's own queue.
     public var onEvent: ((Event) -> Void)?
 
-    /// Name the system shows for the device.
-    public let productName: String
-    public let manufacturer: String
+    /// The controller identity presented to the system. Fixed for the
+    /// lifetime of the device; create a new `VirtualGamepad` to change it.
+    public let profile: GamepadProfile
 
     private var device: IOHIDUserDevice?
     private var creationFailed = false
+    private var homePressed = false
     private let queue = DispatchQueue(label: "phoros.virtual-gamepad", qos: .userInteractive)
 
-    public init(productName: String = "Phoros Controller", manufacturer: String = "Phoros") {
-        self.productName = productName
-        self.manufacturer = manufacturer
+    /// `profile` defaults to `.xboxOne`, which macOS adopts into
+    /// `GCController` with its built-in mapping. `.generic` is only visible
+    /// to raw HID readers.
+    public init(profile: GamepadProfile = .xboxOne) {
+        self.profile = profile
     }
 
     deinit {
@@ -73,11 +76,11 @@ public final class VirtualGamepad: @unchecked Sendable {
             }
             if device == nil { createLocked() }
             guard let device else { return }
-            let bytes = GamepadReport.bytes(for: report)
-            let result = bytes.withUnsafeBufferPointer { buffer in
-                IOHIDUserDeviceHandleReportWithTimeStamp(device, mach_absolute_time(), buffer.baseAddress!, buffer.count)
+            post(profile.inputReport(for: report), to: device)
+            if profile == .xboxOne, report.buttons.contains(.home) != homePressed {
+                homePressed.toggle()
+                post(XboxOneReport.homeReport(pressed: homePressed), to: device)
             }
-            if result != kIOReturnSuccess { onEvent?(.reportRejected(result)) }
         }
     }
 
@@ -86,16 +89,23 @@ public final class VirtualGamepad: @unchecked Sendable {
         queue.async { [self] in releaseLocked() }
     }
 
+    private func post(_ bytes: [UInt8], to device: IOHIDUserDevice) {
+        let result = bytes.withUnsafeBufferPointer { buffer in
+            IOHIDUserDeviceHandleReportWithTimeStamp(device, mach_absolute_time(), buffer.baseAddress!, buffer.count)
+        }
+        if result != kIOReturnSuccess { onEvent?(.reportRejected(result)) }
+    }
+
     private func createLocked() {
         guard !creationFailed else { return }
         let properties: [String: Any] = [
-            kIOHIDReportDescriptorKey: Data(GamepadReport.descriptor),
-            kIOHIDVendorIDKey: GamepadReport.vendorID,
-            kIOHIDProductIDKey: GamepadReport.productID,
-            kIOHIDVersionNumberKey: 1,
-            kIOHIDProductKey: productName,
-            kIOHIDManufacturerKey: manufacturer,
-            kIOHIDTransportKey: "Virtual",
+            kIOHIDReportDescriptorKey: Data(profile.descriptor),
+            kIOHIDVendorIDKey: profile.vendorID,
+            kIOHIDProductIDKey: profile.productID,
+            kIOHIDVersionNumberKey: profile.versionNumber,
+            kIOHIDProductKey: profile.productName,
+            kIOHIDManufacturerKey: profile.manufacturer,
+            kIOHIDTransportKey: profile.transport,
             kIOHIDPrimaryUsagePageKey: kHIDPage_GenericDesktop,
             kIOHIDPrimaryUsageKey: kHIDUsage_GD_GamePad,
         ]
@@ -104,14 +114,28 @@ public final class VirtualGamepad: @unchecked Sendable {
             onEvent?(.creationFailed)
             return
         }
+        let profile = self.profile
+        IOHIDUserDeviceRegisterGetReportBlock(created, { type, reportID, report, length in
+            guard type == kIOHIDReportTypeFeature, let answer = profile.featureReport(id: UInt8(reportID)) else {
+                return kIOReturnUnsupported
+            }
+            let n = min(answer.count, Int(length.pointee))
+            answer.withUnsafeBufferPointer { report.update(from: $0.baseAddress!, count: n) }
+            length.pointee = CFIndex(n)
+            return kIOReturnSuccess
+        })
+        IOHIDUserDeviceSetDispatchQueue(created, queue)
+        IOHIDUserDeviceActivate(created)
         device = created
+        homePressed = false
         onEvent?(.created)
     }
 
     private func releaseLocked() {
         creationFailed = false
-        guard device != nil else { return }
-        device = nil  // dropping the last reference removes the HID device
+        guard let device else { return }
+        IOHIDUserDeviceCancel(device)
+        self.device = nil  // dropping the last reference removes the HID device
         onEvent?(.released)
     }
 }
