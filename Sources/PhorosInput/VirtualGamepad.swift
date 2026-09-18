@@ -61,7 +61,12 @@ public final class VirtualGamepad: @unchecked Sendable {
     }
 
     deinit {
-        device = nil
+        // An activated device must be cancelled, and may only be released
+        // after its cancel handler ran. The handler holds the last reference.
+        if let device {
+            IOHIDUserDeviceCancel(device)
+            self.device = nil
+        }
     }
 
     /// Whether a virtual device currently exists.
@@ -115,6 +120,10 @@ public final class VirtualGamepad: @unchecked Sendable {
             return
         }
         let profile = self.profile
+        IOHIDUserDeviceSetCancelHandler(created) {
+            // Keeps `created` alive until IOKit is done with it, then drops it.
+            _ = created
+        }
         IOHIDUserDeviceRegisterGetReportBlock(created, { type, reportID, report, length in
             guard type == kIOHIDReportTypeFeature, let answer = profile.featureReport(id: UInt8(reportID)) else {
                 return kIOReturnUnsupported
