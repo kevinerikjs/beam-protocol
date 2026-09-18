@@ -5,8 +5,9 @@
 <h1 align="center">Phoros</h1>
 
 <p align="center">
-  Pair two Apple devices and stream one screen to the other. No server, no account, no WebRTC.<br>
-  <em>Greek for "bearer": the part that carries a picture from one device to another.</em>
+  Real-time media and input transport for Apple platforms.<br>
+  One device sends video and audio, the other sends control back. No server, no account, no WebRTC.<br>
+  <em>Greek for "bearer": the part that carries the picture, and carries your hand back.</em>
 </p>
 
 <p align="center">
@@ -20,7 +21,16 @@
 
 <br>
 
-Phoros is the protocol and the plumbing behind [Beam](https://github.com/kevinerikjs/beam-ios) and [Beacon](https://github.com/kevinerikjs/beacon-macos), a shipped iPhone and Mac pair (Beam 3.0, Beacon 1.5.0). It is published so you can build the same kind of app without repeating what they learned in production. Five products, take what you need:
+Phoros is a low-latency protocol and the plumbing under it for apps that stream video and audio from one Apple device to another and send input back in real time. Pairing, framing, codec negotiation, hardware encoders, a virtual game controller, keyboard and click replay: the parts every such app rebuilds, done once and versioned.
+
+```
+Mac game       →  iPad, controller input back
+iPhone camera  →  Apple TV monitor
+Mac desktop    →  Vision Pro remote display, clicks and keys back
+iPad app       →  Mac, touch and text back
+```
+
+Screen mirroring is one use, not the definition. Phoros ships inside [Beam](https://github.com/kevinerikjs/beam-ios) and [Beacon](https://github.com/kevinerikjs/beacon-macos), an iPhone and Mac pair on the App Store (Beam 3.1, Beacon 1.5.0), and is published so you can build a different pair without repeating what they learned in production. Five products, take what you need:
 
 | Product | What it is | Depends on |
 |---|---|---|
@@ -32,13 +42,13 @@ Phoros is the protocol and the plumbing behind [Beam](https://github.com/keviner
 
 ## Why
 
-You are writing two apps that talk to each other directly. A Mac that streams to an iPhone. An iPad that mirrors to a Vision Pro. A host that takes clicks from a phone. The usual options cost more than they look:
+You are writing two apps that talk to each other directly. A Mac that streams a game to an iPad and takes the controller back. An iPhone camera watched on an Apple TV. A Mac desktop on a Vision Pro with clicks going home. The usual options cost more than they look:
 
 - **AirPlay** belongs to Apple. You cannot change what it does.
 - **WebRTC** brings a signalling server, ICE, DTLS, SDP and a 40 MB dependency to a problem that lives on one Wi-Fi network.
 - **Your own protocol** needs packet framing, codec negotiation, a pairing flow and a versioning story. It also needs an encoder that does not add latency and an AAC clock that stays in sync. You find out in production which part you got wrong.
 
-Phoros is the third option with the production lessons already applied. You bring `ScreenCaptureKit` (or a camera), the UI, and the Keychain.
+Phoros is the third option with the production lessons already applied. You bring the source (`ScreenCaptureKit`, a camera, a Metal view), the UI, and the Keychain.
 
 ## Install
 

@@ -1,5 +1,6 @@
-// Phoros: a wire protocol for pairing two Apple devices and streaming one
-// screen to the other.
+// Phoros: a real-time media and input protocol for Apple platforms. One
+// device sends video and audio, the other sends control back. Screen
+// mirroring is one use of it.
 //
 // The module has four layers, each in its own folder:
 //
