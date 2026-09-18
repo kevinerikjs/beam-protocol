@@ -1,10 +1,14 @@
-# Controller forwarding
+# Input back to the host
+
+The client sends three kinds of input. A game controller goes as binary `.input` packets. Keyboard, text, media keys and clicks go as `ControlMessage.mediaKey`. `PhorosInput` carries both ends of the first and the host end of the second. It also carries the geometry that turns a tap on the frame into a point on the source.
+
+## Game controller
 
 A game controller paired to the client plays games on the host. The client samples the controller and sends `.input` packets. The host replays them into a virtual gamepad. The operating system, and every game on it, sees a real controller.
 
 The wire side is one packet type and one fourteen-byte payload, `ControllerReport`. [wire-format.md](wire-format.md#controller-reports) describes it. `PhorosInput` carries both ends.
 
-## What the host needs
+### What the host needs
 
 `VirtualGamepad` creates the device with `IOHIDUserDevice`. That call needs the `com.apple.developer.hid.virtual.device` entitlement. Apple grants it per team on request. Ask from the developer portal: Identifiers, your App ID, Additional Capabilities, HID Virtual Device. After the grant:
 
@@ -16,7 +20,7 @@ Without the entitlement, `IOHIDUserDeviceCreateWithProperties` returns nil. Ther
 
 A host that does not have the entitlement must not set `HostCapabilities.supportsControllerInput`. It still receives `.input` packets from older clients. Recognise the type and return, before any JSON decode. Letting sixty binary packets a second fall into the JSON path fills the log.
 
-## Host
+### Host
 
 ```swift
 import Phoros, PhorosSession, PhorosInput
@@ -45,7 +49,7 @@ The device appears on the first connected report and disappears on a report with
 
 `GamepadReport` holds the HID descriptor and the mapping from `ControllerReport` to the nine report bytes. The descriptor is a generic desktop gamepad: sixteen buttons, a hat switch for the d-pad, X/Y/Z/Rz for the sticks and Rx/Ry for the triggers. Vendor id `0x1209` and product id `0xBEA0` are fixed. Games key their remapping profiles on that pair.
 
-## Client
+### Client
 
 ```swift
 import Phoros, PhorosInput
@@ -70,6 +74,66 @@ Start the sampler only for a host that advertised `supportsControllerInput`. A h
 
 The GameController framework stops delivering input when an iOS app leaves the foreground, so forwarding pauses in the background and in Picture in Picture.
 
-## Testing
+### Testing
 
 `GamepadReport` and `ReportThrottle` are pure and covered by `swift test`. `VirtualGamepad` can only be tested with the entitlement in a signed build. Run the host and connect a controller to the client. Check that the system's Game Controllers list, or any game, shows the virtual device with sticks and triggers moving.
+
+## Keyboard, text, media keys and clicks
+
+The wire side is `ControlMessage.mediaKey(MediaKeyCommand)`. One message carries one of these:
+
+- a built-in `key` for transport and seek
+- a `controlID` for a button the host advertised
+- `text` from a prompt
+- one `keystroke` from a live keyboard, with a `keystrokeModifiers` mask
+- a `click` normalised to the frame [wire-format.md](wire-format.md) lists the fields.
+
+`KeyModifiers` is the mask. Its values are Carbon's: `command` 0x0100, `shift` 0x0200, `option` 0x0800, `control` 0x1000. The first host posted keystrokes with Carbon and the mask went out as it was. A client on any platform builds it from `ControlButton.modifier` names with `KeyModifiers(wireName:)`.
+
+### Host (macOS)
+
+`InputReplay` posts the events. It needs the Accessibility permission and no entitlement. Check `isAccessibilityGranted` before the first call and use `requestAccessibilityPermission()` to show the system prompt.
+
+```swift
+import Phoros, PhorosInput
+
+func handle(_ command: MediaKeyCommand) {
+    guard InputReplay.isAccessibilityGranted else { return }
+    if let text = command.text {
+        InputReplay.typeText(text, thenReturn: true)
+    } else if let key = command.keystroke {
+        InputReplay.typeKeystroke(key, modifiers: KeyModifiers(rawValue: command.keystrokeModifiers ?? 0))
+    } else if let click = command.click, let point = screenPoint(for: click) {
+        InputReplay.click(at: point, right: click.button == "right")
+    } else {
+        InputReplay.perform(command.key)
+    }
+}
+```
+
+What the functions lock in:
+
+- `typeKeystroke` sends Backspace, Return and Tab as their real keys, so terminals and editors treat them as such. A character with modifiers is a chord and needs a real key code. The ANSI table supplies it, and a character with no key is typed plain. Everything else is typed as Unicode, which works on any keyboard layout.
+- `typeText` types one character per event with a 2 ms gap so terminals keep up, and can press Return at the end.
+- `click` moves the pointer first, then presses and releases with short gaps, so apps that track hover see the move.
+- `postMediaKey` posts the NX system-defined events media-key hardware produces, so the key reaches whichever app is playing.
+- `perform(_ key:)` is the original behaviour for the built-in buttons: media keys for transport, arrow keys for seek.
+
+Typing and clicking run on a background queue. Media keys and single presses post inline.
+
+A host that renders its own button layout (`HostCapabilities.controls`) decides what each `controlID` means. That mapping is app policy and stays in the app. `InputReplay` is the layer under it.
+
+### Where a tap lands
+
+The client normalises a tap to the frame it shows. The host encodes a fixed-aspect frame, so a source with a different aspect is letterboxed inside it. A viewport lock shows only part of the source. `FrameMapping` undoes both:
+
+```swift
+let point = FrameMapping.sourcePoint(
+    forFramePoint: CGPoint(x: click.x, y: click.y),
+    sourceFrame: capturedWindow.frame,          // or the display's frame
+    shownViewport: viewportLock,                // source-normalised, nil for the whole source
+    frameSize: CGSize(width: encoder.width, height: encoder.height)
+)
+```
+
+`nil` means the tap was in the letterbox. `sourceRect(fromFrameRect:sourceSize:frameSize:)` does the same for a rect, which is how a host turns a `viewportLockRequest` into a source region. Both are pure and covered by tests.

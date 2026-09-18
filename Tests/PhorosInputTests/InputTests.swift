@@ -73,3 +73,61 @@ final class ReportThrottleTests: XCTestCase {
         XCTAssertEqual(ControllerReport.trigger(0.5), 127)
     }
 }
+
+final class FrameMappingTests: XCTestCase {
+    let frame = CGSize(width: 1920, height: 1080)
+
+    func testMatchingAspectMapsOneToOne() {
+        let content = FrameMapping.contentRect(sourceSize: CGSize(width: 3840, height: 2160), frameSize: frame)
+        XCTAssertEqual(content, CGRect(x: 0, y: 0, width: 1, height: 1))
+        let point = FrameMapping.sourcePoint(forFramePoint: CGPoint(x: 0.25, y: 0.5), sourceFrame: CGRect(x: 100, y: 200, width: 3840, height: 2160), shownViewport: nil, frameSize: frame)
+        XCTAssertEqual(point, CGPoint(x: 100 + 960, y: 200 + 1080))
+    }
+
+    func testTallSourceIsPillarboxedAndTapsInTheBarsAreRejected() {
+        let source = CGSize(width: 1080, height: 1920)
+        let content = FrameMapping.contentRect(sourceSize: source, frameSize: frame)
+        XCTAssertEqual(content.height, 1)
+        XCTAssertEqual(content.width, 0.31640625, accuracy: 0.0001)
+        XCTAssertNil(FrameMapping.sourcePoint(forFramePoint: CGPoint(x: 0.05, y: 0.5), sourceFrame: CGRect(origin: .zero, size: source), shownViewport: nil, frameSize: frame))
+        let centre = FrameMapping.sourcePoint(forFramePoint: CGPoint(x: 0.5, y: 0.5), sourceFrame: CGRect(origin: .zero, size: source), shownViewport: nil, frameSize: frame)!
+        XCTAssertEqual(centre.x, 540, accuracy: 2)
+        XCTAssertEqual(centre.y, 960, accuracy: 2)
+    }
+
+    func testViewportLockIsUndone() {
+        let sourceFrame = CGRect(x: 0, y: 0, width: 1920, height: 1080)
+        let lock = CGRect(x: 0.5, y: 0.5, width: 0.5, height: 0.5)   // bottom-right quarter, same aspect
+        let point = FrameMapping.sourcePoint(forFramePoint: CGPoint(x: 0, y: 0), sourceFrame: sourceFrame, shownViewport: lock, frameSize: frame)!
+        XCTAssertEqual(point.x, 960, accuracy: 2)
+        XCTAssertEqual(point.y, 540, accuracy: 2)
+    }
+
+    func testEmptySizesAreRejected() {
+        XCTAssertTrue(FrameMapping.contentRect(sourceSize: .zero, frameSize: frame).isNull)
+        XCTAssertNil(FrameMapping.sourcePoint(forFramePoint: .zero, sourceFrame: .zero, shownViewport: nil, frameSize: frame))
+    }
+}
+
+final class KeyModifiersTests: XCTestCase {
+    func testMaskMatchesCarbon() {
+        XCTAssertEqual(KeyModifiers.command.rawValue, 0x0100)
+        XCTAssertEqual(KeyModifiers.shift.rawValue, 0x0200)
+        XCTAssertEqual(KeyModifiers.option.rawValue, 0x0800)
+        XCTAssertEqual(KeyModifiers.control.rawValue, 0x1000)
+        XCTAssertEqual(KeyModifiers(wireName: "cmd"), .command)
+        XCTAssertEqual(KeyModifiers(wireName: "alt"), .option)
+        XCTAssertEqual(KeyModifiers(wireName: "ctrl"), .control)
+        XCTAssertNil(KeyModifiers(wireName: "hyper"))
+    }
+
+    #if os(macOS)
+    func testChordLookupAndFlags() {
+        XCTAssertEqual(InputReplay.ansiKeyCode(for: "c"), 8)
+        XCTAssertEqual(InputReplay.ansiKeyCode(for: "C"), 8)
+        XCTAssertNil(InputReplay.ansiKeyCode(for: "é"))
+        XCTAssertNil(InputReplay.ansiKeyCode(for: "ab"))
+        XCTAssertEqual(InputReplay.eventFlags(for: [.command, .shift]), [.maskCommand, .maskShift])
+    }
+    #endif
+}

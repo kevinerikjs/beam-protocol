@@ -28,7 +28,7 @@ Phoros is the protocol and the plumbing behind [Beam](https://github.com/keviner
 | **`PhorosSession`** | The logic on top: pairing and auth state machines, frame reassembly, audio sequencing, send scheduling, quality adaptation. No I/O. | `Phoros` |
 | **`PhorosNetwork`** | The transport: one call gives you a framed, size-bounded connection over `Network.framework`. | `Phoros`, Network |
 | **`PhorosMedia`** | The codecs, shaped for the wire: H.264/HEVC via VideoToolbox, AAC-LC via AudioToolbox, parameter sets, Annex B, sample buffers. | `Phoros`, VideoToolbox, AudioToolbox |
-| **`PhorosInput`** | Game controller forwarding: sampling on the client, a virtual HID gamepad on a macOS host, and the HID report mapping between them. | `Phoros`, GameController, IOKit |
+| **`PhorosInput`** | Every input path back to the host: game controller sampling and a virtual HID gamepad, keyboard, text, media-key and click replay, and the geometry from a tap on the frame to a point on the source. | `Phoros`, GameController, IOKit, CoreGraphics |
 
 ## Why
 
@@ -44,7 +44,7 @@ Phoros is the third option with the production lessons already applied. You brin
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/kevinerikjs/phoros.git", exact: "1.1.0")
+    .package(url: "https://github.com/kevinerikjs/phoros.git", exact: "1.2.0")
 ],
 targets: [
     .target(name: "MyHost", dependencies: [
@@ -131,7 +131,7 @@ Every type in `PhorosSession` exists because a shipped build got something wrong
 - [docs/wire-format.md](docs/wire-format.md): every byte and every JSON field.
 - [docs/session.md](docs/session.md): building a host and a client with `PhorosSession` and `PhorosNetwork`.
 - [docs/media.md](docs/media.md): the encoders and decoders, and what they lock in.
-- [docs/input.md](docs/input.md): forwarding a game controller from the client to a virtual gamepad on the host.
+- [docs/input.md](docs/input.md): input back to the host: game controller, keyboard, text, media keys, clicks.
 - [docs/compatibility.md](docs/compatibility.md): the rules, and the incidents behind them.
 
 ## Testing
@@ -140,7 +140,7 @@ Every type in `PhorosSession` exists because a shipped build got something wrong
 swift test
 ```
 
-93 tests. The `Phoros` suite pins the exact bytes of every header and the exact JSON of every message as shipped peers send them. A wire break fails here first. The `PhorosSession` suite replays the incidents above. The `PhorosMedia` suite builds a real H.264 format description from real SPS/PPS bytes and round-trips audio through the AAC encoder and decoder. The `PhorosInput` suite pins the HID report descriptor and the mapping from a wire report to HID bytes.
+99 tests. The `Phoros` suite pins the exact bytes of every header and the exact JSON of every message as shipped peers send them. A wire break fails here first. The `PhorosSession` suite replays the incidents above. The `PhorosMedia` suite builds a real H.264 format description from real SPS/PPS bytes and round-trips audio through the AAC encoder and decoder. The `PhorosInput` suite pins the HID report descriptor, the mapping from a wire report to HID bytes, and the tap-to-source geometry.
 
 Before you release an app built on Phoros, also test on real devices in three combinations:
 

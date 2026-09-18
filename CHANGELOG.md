@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.0
+
+Protocol version stays 1. Additive.
+
+- `Phoros`: `KeyModifiers`, the Carbon-valued mask that `MediaKeyCommand.keystrokeModifiers` carries, with `init?(wireName:)` for `ControlButton.modifier` names.
+- `PhorosInput`: `InputReplay` (macOS) posts keystrokes, text, media keys and clicks for `ControlMessage.mediaKey`. `FrameMapping` maps frame-normalised taps and rects to the source with letterbox and viewport lock undone.
+- README mark.
+- 99 tests.
+
 ## 1.1.0
 
 Protocol version stays 1. Everything here is additive.
