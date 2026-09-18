@@ -575,7 +575,7 @@ public struct BeamPairingMessage: Codable {
     }
 }
 
-public struct BeamPhoneControl: Codable, Equatable {
+public struct BeamPhoneControl: Codable, Equatable, Identifiable {
     public let id: String
     public let symbol: String
     public let label: String

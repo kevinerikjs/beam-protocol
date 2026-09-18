@@ -1,6 +1,6 @@
 # BeamProtocol
 
-BeamProtocol is a small Swift package for the wire format used by [Beam](https://github.com/kevinerikjs/beam-ios) and [Beacon](https://github.com/kevinerikjs/beacon-macos): a paired Apple-device screen-streaming client and host.
+BeamProtocol defines the wire format for [Beam](https://github.com/kevinerikjs/beam-ios) and [Beacon](https://github.com/kevinerikjs/beacon-macos). Beam streams a Mac screen to an Apple client after device pairing.
 
 It provides packet framing, media payload headers, pairing messages, control messages, and capability negotiation. It does not open sockets, capture a screen, encode media, store credentials, or draw UI.
 
@@ -57,7 +57,7 @@ Every packet starts with a ten-byte header:
 
 Video payloads add a sixteen-byte fragment header. Audio payloads add a twelve-byte sequence/timestamp header. Presentation timestamps are microseconds.
 
-The package models JSON pairing and control messages with `Codable`. Media codecs are negotiated by name during authentication; the packet flag remains the authority for decoding an individual media packet.
+The package models JSON pairing and control messages with `Codable`. Peers negotiate media codecs by name during authentication. The packet flag selects the codec for each media packet.
 
 ## Compatibility rules
 
@@ -78,11 +78,17 @@ Run the package tests:
 swift test
 ```
 
-The suite checks fixed wire bytes, parser round trips, and legacy codec handling. Before a Beam or Beacon release, also test the supported device combinations on real hardware: current client/current host, current client/previous host, and previous client/current host.
+The suite checks fixed wire bytes, parser round trips, and legacy codec handling.
+
+Before a Beam or Beacon release, test these device pairs on real hardware:
+
+- Current client and current host.
+- Current client and previous host.
+- Previous client and current host.
 
 ## Scope and security
 
-This package is intentionally transport-agnostic. Applications must authenticate peers before accepting control messages or media, bound message sizes before allocating buffers, and protect any remote transport with TLS.
+This package does not select a transport. Applications must authenticate peers before they accept control messages or media. Applications must limit message sizes before they allocate buffers. Applications must use TLS for remote connections.
 
 Pairing secrets, screen contents, audio, analytics, and network transport are outside this package.
 
